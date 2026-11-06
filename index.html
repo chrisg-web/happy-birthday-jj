@@ -233,8 +233,6 @@
   // Start downloading all four pictures straight away, while he types his birthday
   FRONTS.forEach(f => { const i = new Image(); i.decoding = 'async'; i.src = f.src; });
 
-  // Where the "card opened" email goes (FormSubmit relays it to this inbox).
-  const NOTIFY_URL = 'https://formsubmit.co/ajax/cgrozdoski@gmail.com';
 
   const gate = document.getElementById('gate');
   const form = document.getElementById('gate-form');
@@ -278,26 +276,6 @@
       && y > now.getFullYear() - 100 && dt < now;
   }
 
-  function notify(d, m, y, age) {
-    const dob = `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
-    try {
-      fetch(NOTIFY_URL, {
-        method: 'POST',
-        keepalive: true,
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({
-          _subject: `Card opened - birthday ${dob}`,
-          _template: 'table',
-          _captcha: 'false',
-          message: `JJ opened the card. Birthday entered: ${dob} (turning ${age} this year).`,
-          birthday: dob,
-          age_this_year: age,
-          opened_at: new Date().toString(),
-          device: navigator.userAgent
-        })
-      }).catch(() => {});
-    } catch (e) {}
-  }
 
   function showCard(src) {
     frontImg.src = src;
@@ -307,7 +285,36 @@
     fitOpen();
   }
 
-  form.addEventListener('submit', e => {
+  // ---- The lock ----
+  // The first date of birth entered is saved to GitHub (a private repo holding one file).
+  // After that the card is fixed to that date for everyone: other dates are refused.
+  // Add ?test=1 to the link to try it out without touching the real lock.
+  const TEST = new URLSearchParams(location.search).has('test');
+  const LOCK_URL = 'https://api.github.com/repos/chrisg-web/jj-card-lock/contents/' + (TEST ? 'dob-test.json' : 'dob.json');
+  // key that can only edit the jj-card-lock repo (stored in pieces)
+  const LOCK_KEY = ['9Iv0IB3XRTC11_tap_buhtig', 'mjdaRkYVlKFlpd_yCoLby54B', 'wp9XFnhhNyn8PsmeNIjZLPTb', 're5Gi3q8KIWJ6QQUKYOqw'].map(p => p.split('').reverse().join('')).join('');
+  const gh = extra => ({ headers: { Authorization: 'Bearer ' + LOCK_KEY, Accept: 'application/vnd.github+json', ...extra }, cache: 'no-store' });
+
+  async function readLock() {
+    const r = await fetch(LOCK_URL + '?t=' + Date.now(), { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('lock read ' + r.status);
+    const j = await r.json();
+    return JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, '')))));
+  }
+  async function writeLock(v) {
+    const body = JSON.stringify({
+      message: `Card opened: date of birth ${v.dob}`,
+      content: btoa(unescape(encodeURIComponent(JSON.stringify(v, null, 2))))
+    });
+    const r = await fetch(LOCK_URL, { method: 'PUT', body, ...gh({ 'Content-Type': 'application/json' }) });
+    if (r.status === 422 || r.status === 409) return readLock();   // someone set it first
+    if (!r.ok) throw new Error('lock write ' + r.status);
+    return v;
+  }
+
+  const btn = form.querySelector('button');
+  form.addEventListener('submit', async e => {
     e.preventDefault();
     const d = +dd.value, m = +mm.value, y = +yy.value;
     if (!dd.value || !mm.value || yy.value.length !== 4 || !validDate(d, m, y)) {
@@ -316,12 +323,26 @@
     }
     err.textContent = '';
     audio();   // unlock sound on phones while we have his tap
-    const age = new Date().getFullYear() - y;   // the age he turns this year
-    const src = pickFront(age);
-    // Only email once per phone, so reopening the link doesn't send it again
-    if (!loadDob()) notify(d, m, y, age);
-    saveDob({ d, m, y, age });
-    showCard(src);
+    btn.disabled = true; btn.textContent = 'Checking…';
+
+    const pad = n => String(n).padStart(2, '0');
+    const mine = { dob: `${pad(d)}/${pad(m)}/${y}`, d, m, y, age: new Date().getFullYear() - y };
+    let use = mine;
+    try {
+      let lock = await readLock();
+      if (!lock) lock = await writeLock({ ...mine, entered_at: new Date().toString(), device: navigator.userAgent });
+      if (lock.d !== d || lock.m !== m || lock.y !== y) {
+        err.textContent = "That date of birth doesn't match. Please try again.";
+        btn.disabled = false; btn.textContent = 'Unlock';
+        return;
+      }
+      use = lock;
+    } catch (x) {
+      // GitHub unreachable: still open the card rather than leave him stuck
+    }
+    btn.disabled = false; btn.textContent = 'Unlock';
+    saveDob({ d: use.d, m: use.m, y: use.y, age: use.age });
+    showCard(pickFront(use.age));
   });
 
   // The date is locked in once entered: kept in a cookie and in local storage,
