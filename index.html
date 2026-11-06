@@ -317,19 +317,35 @@
     const age = new Date().getFullYear() - y;   // the age he turns this year
     const src = pickFront(age);
     // Only email once per phone, so reopening the link doesn't send it again
-    if (!localStorage.getItem('jj-card-dob')) notify(d, m, y, age);
-    localStorage.setItem('jj-card-dob', JSON.stringify({ d, m, y }));
+    if (!loadDob()) notify(d, m, y, age);
+    saveDob({ d, m, y, age });
     showCard(src);
   });
 
-  // Coming back to the link skips the entry screen
-  const saved = localStorage.getItem('jj-card-dob');
+  // The date is locked in once entered: kept in a cookie and in local storage,
+  // so the entry screen never comes back unless he clears his browser data.
+  const KEY = 'jj-card-dob';
+  function saveDob(v) {
+    const s = JSON.stringify(v);
+    try { localStorage.setItem(KEY, s); } catch (e) {}
+    document.cookie = `${KEY}=${encodeURIComponent(s)}; max-age=${60 * 60 * 24 * 400}; path=/; SameSite=Lax; Secure`;
+  }
+  function loadDob() {
+    let s = null;
+    try { s = localStorage.getItem(KEY); } catch (e) {}
+    if (!s) {
+      const m = document.cookie.match(new RegExp('(?:^|; )' + KEY + '=([^;]*)'));
+      if (m) s = decodeURIComponent(m[1]);
+    }
+    try { return s ? JSON.parse(s) : null; } catch (e) { return null; }
+  }
+
+  // Coming back to the link skips the entry screen and shows the same picture
+  const saved = loadDob();
   if (saved) {
-    try {
-      const { y } = JSON.parse(saved);
-      showCard(pickFront(new Date().getFullYear() - y));
-      gate.style.transition = 'none';
-    } catch (e) {}
+    gate.style.transition = 'none';
+    saveDob(saved);   // refresh both copies
+    showCard(pickFront(saved.age || (new Date().getFullYear() - saved.y)));
   }
 
   // Shrink factor so the opened (two-page-wide) card fits the screen
