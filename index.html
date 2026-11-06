@@ -210,7 +210,7 @@
         <span class="soon">Hopefully see you very soon.</span>
       </p>
       <p class="from">With best wishes,<br>Chris</p>
-      <img class="sig" src="img/signature.png" alt="Chris's signature">
+      <img class="sig" src="img/signature.webp" alt="Chris's signature">
     </button>
     <div class="cover" id="cover" role="button" tabindex="0" aria-label="Open the card">
       <div class="face front"><img id="front-img" alt="Birthday card front"></div>
@@ -225,11 +225,13 @@
   // One front picture per age. The page shows the one that matches the year he enters.
   // If his age isn't in the list, the nearest one is used.
   const FRONTS = [
-    { age: 26, src: 'img/front-26.jpg' },
-    { age: 27, src: 'img/front-27.jpg' },
-    { age: 28, src: 'img/front-28.jpg' },
-    { age: 29, src: 'img/front-29.jpg' },
+    { age: 26, src: 'img/front-26.webp' },
+    { age: 27, src: 'img/front-27.webp' },
+    { age: 28, src: 'img/front-28.webp' },
+    { age: 29, src: 'img/front-29.webp' },
   ];
+  // Start downloading all four pictures straight away, while he types his birthday
+  FRONTS.forEach(f => { const i = new Image(); i.decoding = 'async'; i.src = f.src; });
 
   // Where the "card opened" email goes (FormSubmit relays it to this inbox).
   const NOTIFY_URL = 'https://formsubmit.co/ajax/cgrozdoski@gmail.com';
