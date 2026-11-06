@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A card for you</title>
+<meta property="og:title" content="You've got a card">
+<meta property="og:description" content="Tap to open">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Press+Start+2P&family=Lora:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1d2147;
+    --gold: #d9b45a;
+    --paper: #fbf6ea;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    min-height: 100dvh;
+    background: radial-gradient(ellipse at top, #3a3f78 0%, #1d2147 55%, #12142e 100%);
+    font-family: 'Lora', Georgia, serif;
+    color: var(--navy);
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ---------- Birthday entry screen ---------- */
+  #gate {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    z-index: 10;
+    transition: opacity .5s ease;
+  }
+  #gate.hide { opacity: 0; pointer-events: none; }
+  .gate-box {
+    width: 100%; max-width: 380px;
+    background: var(--paper);
+    border: 4px solid var(--gold);
+    outline: 4px solid var(--navy);
+    box-shadow: 0 20px 50px rgba(0,0,0,.45);
+    padding: 26px 22px 22px;
+    text-align: center;
+  }
+  .gate-box h1 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 13px; line-height: 1.7;
+    margin: 0 0 14px;
+  }
+  .gate-box p { margin: 0 0 18px; font-size: 15px; line-height: 1.5; }
+  .dob { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+  .dob label { display: flex; flex-direction: column; font-size: 12px; gap: 4px; }
+  .dob input {
+    font: 600 22px 'Lora', Georgia, serif;
+    text-align: center;
+    border: 2px solid var(--navy);
+    background: #fff;
+    padding: 10px 4px;
+    color: var(--navy);
+    border-radius: 0;
+  }
+  .dob input.dd, .dob input.mm { width: 64px; }
+  .dob input.yyyy { width: 96px; }
+  .dob input:focus { outline: 3px solid var(--gold); }
+  #gate-error { color: #a32020; font-size: 14px; min-height: 20px; margin: 4px 0 8px; }
+  .btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    background: var(--navy); color: #fff;
+    border: 3px solid var(--gold);
+    padding: 14px 18px;
+    cursor: pointer;
+    width: 100%;
+  }
+  .btn:active { transform: translateY(2px); }
+
+  /* ---------- The card ---------- */
+  #stage {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    perspective: 2200px;
+    opacity: 0;
+    transition: opacity .6s ease .2s;
+  }
+  #stage.show { opacity: 1; }
+
+  /* card size: portrait 2:3, fits the screen when closed */
+  .card-wrap {
+    --w: min(86vw, calc((100dvh - 110px) * 2 / 3), 460px);
+    --h: calc(var(--w) * 1.5);
+    width: var(--w); height: var(--h);
+    position: relative;
+    transition: transform 1s cubic-bezier(.4,.1,.2,1);
+  }
+  /* when open, the card is two pages wide, so slide it right and shrink to fit */
+  .card-wrap.open {
+    transform: translateX(var(--shift, 0px)) scale(var(--s, 1));
+  }
+
+  .page {
+    position: absolute; inset: 0;
+    background: var(--paper);
+    box-shadow: 0 18px 40px rgba(0,0,0,.45);
+  }
+
+  .cover {
+    position: absolute; inset: 0;
+    transform-origin: left center;
+    transform-style: preserve-3d;
+    transition: transform 1s cubic-bezier(.4,.1,.2,1);
+    cursor: pointer;
+    z-index: 2;
+  }
+  .open .cover { transform: rotateY(-180deg); }
+  .face {
+    position: absolute; inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    overflow: hidden;
+  }
+  .front img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    image-rendering: auto;
+  }
+  .front { box-shadow: 0 18px 40px rgba(0,0,0,.45); background: #222; }
+  .inside-left {
+    transform: rotateY(180deg);
+    background:
+      repeating-linear-gradient(45deg, rgba(29,33,71,.05) 0 10px, transparent 10px 20px),
+      var(--paper);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset -12px 0 24px -12px rgba(0,0,0,.25);
+  }
+  .inside-left .balloons { font-size: calc(var(--w) * .22); line-height: 1; opacity: .9; }
+
+  .inside-right {
+    display: flex; flex-direction: column;
+    justify-content: center;
+    padding: calc(var(--w) * .1) calc(var(--w) * .09);
+    box-shadow: inset 12px 0 24px -12px rgba(0,0,0,.25), 0 18px 40px rgba(0,0,0,.45);
+    cursor: pointer;
+    border: 0;
+  }
+  .inside-right .frame {
+    position: absolute; inset: calc(var(--w) * .035);
+    border: 2px solid var(--gold);
+    pointer-events: none;
+  }
+  .msg {
+    font-family: 'Caveat', cursive;
+    font-size: calc(var(--w) * .085);
+    line-height: 1.25;
+    margin: 0;
+  }
+  .msg .soon { display: block; margin-top: .5em; }
+  .msg .name { font-weight: 700; font-size: 1.15em; display: block; margin-bottom: .3em; }
+  .from {
+    font-family: 'Caveat', cursive;
+    font-size: calc(var(--w) * .075);
+    margin: 1em 0 .2em;
+  }
+  .sig { width: 78%; max-width: 360px; display: block; }
+
+  .hint {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,.8);
+    margin-top: 22px;
+    letter-spacing: .5px;
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover, .card-wrap { transition-duration: .01s; }
+    .hint { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Birthday entry screen -->
+<div id="gate">
+  <form class="gate-box" id="gate-form" novalidate>
+    <h1>Card locked</h1>
+    <p>For security reasons, please enter your date of birth to open this card.</p>
+    <div class="dob">
+      <label>Day<input class="dd" id="dd" inputmode="numeric" placeholder="DD" autocomplete="off" aria-label="Day"></label>
+      <label>Month<input class="mm" id="mm" inputmode="numeric" placeholder="MM" autocomplete="off" aria-label="Month"></label>
+      <label>Year<input class="yyyy" id="yyyy" inputmode="numeric" placeholder="YYYY" autocomplete="off" aria-label="Year"></label>
+    </div>
+    <div id="gate-error" role="alert"></div>
+    <button class="btn" type="submit">Unlock</button>
+  </form>
+</div>
+
+<!-- The card -->
+<div id="stage" aria-hidden="true">
+  <div class="card-wrap" id="card">
+    <button class="page inside-right" id="inside" aria-label="Close the card">
+      <span class="frame"></span>
+      <p class="msg">
+        <span class="name">JJ,</span>
+        Wishing you a great birthday and many happy returns. Best of luck with everything this year, with career and relationships!
+        <span class="soon">Hopefully see you very soon!</span>
+      </p>
+      <p class="from">From Chris</p>
+      <img class="sig" src="img/signature.png" alt="Chris's signature">
+    </button>
+    <div class="cover" id="cover" role="button" tabindex="0" aria-label="Open the card">
+      <div class="face front"><img id="front-img" alt="Birthday card front"></div>
+      <div class="face inside-left"><div class="balloons">🎈🎂</div></div>
+    </div>
+  </div>
+  <div class="hint" id="hint">Tap to open</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script>
+  // One front picture per age. The page shows the one that matches the year he enters.
+  // If his age isn't in the list, the nearest one is used.
+  const FRONTS = [
+    { age: 26, src: 'img/front-26.jpg' },
+    { age: 27, src: 'img/front-27.jpg' },
+    { age: 28, src: 'img/front-28.jpg' },
+    { age: 29, src: 'img/front-29.jpg' },
+  ];
+
+  // Where the "card opened" email goes (FormSubmit relays it to this inbox).
+  const NOTIFY_URL = 'https://formsubmit.co/ajax/cgrozdoski@gmail.com';
+
+  const gate = document.getElementById('gate');
+  const form = document.getElementById('gate-form');
+  const err = document.getElementById('gate-error');
+  const dd = document.getElementById('dd'), mm = document.getElementById('mm'), yy = document.getElementById('yyyy');
+  const stage = document.getElementById('stage');
+  const card = document.getElementById('card');
+  const cover = document.getElementById('cover');
+  const inside = document.getElementById('inside');
+  const hint = document.getElementById('hint');
+  const frontImg = document.getElementById('front-img');
+
+  // Jump to the next box once a box is full
+  // (extra digits carry over to the next box, so fast typing or pasting "07112000" works)
+  const boxes = [[dd, 2], [mm, 2], [yy, 4]];
+  boxes.forEach(([box, size], i) => {
+    box.addEventListener('input', () => {
+      let v = box.value.replace(/\D/g, '');
+      if (v.length >= size && boxes[i + 1]) {
+        const [next, nsize] = boxes[i + 1];
+        const extra = v.slice(size);
+        box.value = v.slice(0, size);
+        next.focus();
+        if (extra) { next.value = (extra + next.value).slice(0, nsize + extra.length); next.dispatchEvent(new Event('input')); }
+      } else {
+        box.value = v.slice(0, size);
+      }
+    });
+  });
+
+  function pickFront(age) {
+    let best = FRONTS[0];
+    for (const f of FRONTS) if (Math.abs(f.age - age) < Math.abs(best.age - age)) best = f;
+    return best.src;
+  }
+
+  function validDate(d, m, y) {
+    const dt = new Date(y, m - 1, d);
+    const now = new Date();
+    return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d
+      && y > now.getFullYear() - 100 && dt < now;
+  }
+
+  function notify(d, m, y, age) {
+    const dob = `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+    try {
+      fetch(NOTIFY_URL, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          _subject: `Card opened - birthday ${dob}`,
+          _template: 'table',
+          _captcha: 'false',
+          message: `JJ opened the card. Birthday entered: ${dob} (turning ${age} this year).`,
+          birthday: dob,
+          age_this_year: age,
+          opened_at: new Date().toString(),
+          device: navigator.userAgent
+        })
+      }).catch(() => {});
+    } catch (e) {}
+  }
+
+  function showCard(src) {
+    frontImg.src = src;
+    gate.classList.add('hide');
+    stage.classList.add('show');
+    stage.setAttribute('aria-hidden', 'false');
+    fitOpen();
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const d = +dd.value, m = +mm.value, y = +yy.value;
+    if (!dd.value || !mm.value || yy.value.length !== 4 || !validDate(d, m, y)) {
+      err.textContent = 'Please enter a real date as DD / MM / YYYY.';
+      return;
+    }
+    err.textContent = '';
+    audio();   // unlock sound on phones while we have his tap
+    const age = new Date().getFullYear() - y;   // the age he turns this year
+    const src = pickFront(age);
+    // Only email once per phone, so reopening the link doesn't send it again
+    if (!localStorage.getItem('jj-card-dob')) notify(d, m, y, age);
+    localStorage.setItem('jj-card-dob', JSON.stringify({ d, m, y }));
+    showCard(src);
+  });
+
+  // Coming back to the link skips the entry screen
+  const saved = localStorage.getItem('jj-card-dob');
+  if (saved) {
+    try {
+      const { y } = JSON.parse(saved);
+      showCard(pickFront(new Date().getFullYear() - y));
+      gate.style.transition = 'none';
+    } catch (e) {}
+  }
+
+  // Shrink factor so the opened (two-page-wide) card fits the screen
+  function fitOpen() {
+    const w = card.offsetWidth;   // layout width, ignores the scale transform
+    const vw = window.innerWidth - 24;
+    let s = Math.min(1, vw / (2 * w)), shift;
+    if (s >= 0.8) {
+      // wide screen: show both pages side by side
+      shift = w / 2 * s;
+    } else {
+      // phone: keep the message page full size; the open cover swings off to the left
+      s = 1;
+      shift = Math.max(0, (window.innerWidth - w) / 2 - 6);
+    }
+    card.style.setProperty('--s', s.toFixed(4));
+    card.style.setProperty('--shift', shift.toFixed(1) + 'px');
+  }
+  window.addEventListener('resize', fitOpen);
+
+  // ---- Party sounds (party poppers + party horns), made in code ----
+  let ac = null;
+  function audio() {
+    // phones only allow sound after a tap, so this is called from tap handlers
+    if (!ac) { const A = window.AudioContext || window.webkitAudioContext; if (A) ac = new A(); }
+    if (ac && ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function popper(t, vol = 0.9) {
+    const a = audio(); if (!a) return;
+    const len = 0.25, buf = a.createBuffer(1, a.sampleRate * len, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 4);
+    const src = a.createBufferSource(); src.buffer = buf;
+    const f = a.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.7;
+    const g = a.createGain(); g.gain.value = vol;
+    src.connect(f).connect(g).connect(a.destination); src.start(t);
+    // the paper streamers fluttering out
+    const len2 = 0.7, b2 = a.createBuffer(1, a.sampleRate * len2, a.sampleRate), d2 = b2.getChannelData(0);
+    for (let i = 0; i < d2.length; i++) d2[i] = (Math.random() * 2 - 1) * 0.25 * (1 - i / d2.length) * (Math.random() < 0.15 ? 1 : 0.2);
+    const s2 = a.createBufferSource(); s2.buffer = b2;
+    const f2 = a.createBiquadFilter(); f2.type = 'highpass'; f2.frequency.value = 3000;
+    s2.connect(f2).connect(a.destination); s2.start(t + 0.05);
+  }
+  function horn(t, base = 330, dur = 0.9) {
+    const a = audio(); if (!a) return;
+    const o = a.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(base * 0.8, t);
+    o.frequency.linearRampToValueAtTime(base, t + 0.08);
+    const lfo = a.createOscillator(); lfo.frequency.value = 7;
+    const lg = a.createGain(); lg.gain.value = base * 0.03;
+    lfo.connect(lg).connect(o.frequency);
+    const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800; f.Q.value = 4;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.05);
+    g.gain.setValueAtTime(0.22, t + dur - 0.15);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    o.connect(f).connect(g).connect(a.destination);
+    o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
+  }
+  function partySounds() {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime + 0.02;
+    popper(t, 1); popper(t + 0.12, 0.8); popper(t + 0.3, 0.7);
+    horn(t + 0.35, 330, 1.0);
+    horn(t + 0.55, 415, 0.8);
+    horn(t + 1.3, 294, 0.6);
+    horn(t + 1.45, 370, 1.1);
+    popper(t + 1.0, 0.6); popper(t + 1.6, 0.5);
+  }
+
+  // Loads of confetti every time the card opens
+  function confettiBlast() {
+    if (typeof confetti !== 'function') return;
+    const colors = ['#d9b45a', '#e63946', '#3a6ff7', '#ffffff', '#ff8fd1', '#4cd97b', '#ffd23f'];
+    const big = { particleCount: 220, spread: 100, startVelocity: 65, scalar: 1.1, colors, zIndex: 50 };
+    confetti({ ...big, angle: 60, origin: { x: 0, y: 0.9 } });
+    confetti({ ...big, angle: 120, origin: { x: 1, y: 0.9 } });
+    confetti({ particleCount: 260, spread: 160, startVelocity: 45, origin: { x: 0.5, y: 0.45 }, colors, zIndex: 50 });
+    // then keep it raining for a few seconds
+    const end = Date.now() + 3500;
+    (function rain() {
+      confetti({ particleCount: 12, angle: 270, spread: 180, startVelocity: 10, gravity: 0.9, ticks: 300,
+                 origin: { x: Math.random(), y: -0.05 }, colors, zIndex: 50 });
+      if (Date.now() < end) requestAnimationFrame(rain);
+    })();
+  }
+
+  function toggle() {
+    fitOpen();
+    const open = card.classList.toggle('open');
+    if (open) { audio(); setTimeout(() => { confettiBlast(); partySounds(); }, 450); }
+    hint.textContent = open ? 'Tap to close' : 'Tap to open';
+    cover.setAttribute('aria-label', open ? 'Close the card' : 'Open the card');
+  }
+  cover.addEventListener('click', toggle);
+  cover.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  inside.addEventListener('click', () => { if (card.classList.contains('open')) toggle(); });
+</script>
+</body>
+</html>
